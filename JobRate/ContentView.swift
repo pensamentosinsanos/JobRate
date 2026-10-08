@@ -34,7 +34,6 @@ struct LocalEncontrado: Identifiable {
     let longitude: Double
 
     init(mapItem: MKMapItem) {
-
         let coordenada = mapItem.placemark.coordinate
 
         nome = mapItem.name ?? "Local sem nome"
@@ -49,7 +48,6 @@ struct LocalEncontrado: Identifiable {
     }
 
     init(localTrabalhado: LocalTrabalhado) {
-
         id = localTrabalhado.id
         nome = localTrabalhado.nome
         endereco = localTrabalhado.endereco
@@ -64,7 +62,6 @@ struct LocalEncontrado: Identifiable {
         var partes: [String] = []
 
         if let rua = placemark.thoroughfare {
-
             if let numero = placemark.subThoroughfare {
                 partes.append("\(rua), \(numero)")
             } else {
@@ -104,7 +101,6 @@ struct LocalTrabalhado: Codable, Identifiable {
     let longitude: Double
 
     init(local: LocalEncontrado) {
-
         id = local.id
         nome = local.nome
         endereco = local.endereco
@@ -129,6 +125,131 @@ struct AvaliacaoLocal: Codable, Identifiable {
 }
 
 
+// MARK: - REAÇÕES
+
+enum TipoReacao: String, Codable {
+    case concordar
+    case discordar
+}
+
+
+struct ReacaoAvaliacao: Codable, Identifiable {
+
+    let id: UUID
+    let avaliacaoID: UUID
+    let emailUsuario: String
+    var tipo: TipoReacao
+}
+
+
+class ReacoesStore: ObservableObject {
+
+    @Published private(set) var reacoes: [ReacaoAvaliacao] = []
+
+    private let chave = "jobrate.reacoes"
+
+    init() {
+        carregar()
+    }
+
+    func alternarReacao(
+        avaliacaoID: UUID,
+        emailUsuario: String,
+        tipo: TipoReacao
+    ) {
+
+        if let indice = reacoes.firstIndex(
+            where: {
+                $0.avaliacaoID == avaliacaoID &&
+                $0.emailUsuario == emailUsuario
+            }
+        ) {
+
+            if reacoes[indice].tipo == tipo {
+
+                reacoes.remove(
+                    at: indice
+                )
+
+            } else {
+
+                reacoes[indice].tipo = tipo
+            }
+
+        } else {
+
+            reacoes.append(
+                ReacaoAvaliacao(
+                    id: UUID(),
+                    avaliacaoID: avaliacaoID,
+                    emailUsuario: emailUsuario,
+                    tipo: tipo
+                )
+            )
+        }
+
+        salvar()
+    }
+
+    func reacaoDoUsuario(
+        avaliacaoID: UUID,
+        emailUsuario: String
+    ) -> TipoReacao? {
+
+        reacoes.first(
+            where: {
+                $0.avaliacaoID == avaliacaoID &&
+                $0.emailUsuario == emailUsuario
+            }
+        )?.tipo
+    }
+
+    func quantidade(
+        avaliacaoID: UUID,
+        tipo: TipoReacao
+    ) -> Int {
+
+        reacoes.filter {
+            $0.avaliacaoID == avaliacaoID &&
+            $0.tipo == tipo
+        }
+        .count
+    }
+
+    private func salvar() {
+
+        if let dados = try? JSONEncoder().encode(
+            reacoes
+        ) {
+
+            UserDefaults.standard.set(
+                dados,
+                forKey: chave
+            )
+        }
+    }
+
+    private func carregar() {
+
+        guard
+            let dados = UserDefaults.standard.data(
+                forKey: chave
+            ),
+
+            let salvas = try? JSONDecoder().decode(
+                [ReacaoAvaliacao].self,
+                from: dados
+            )
+
+        else {
+            return
+        }
+
+        reacoes = salvas
+    }
+}
+
+
 // MARK: - FILTRO
 
 enum FiltroAvaliacao: String, CaseIterable, Identifiable {
@@ -143,7 +264,7 @@ enum FiltroAvaliacao: String, CaseIterable, Identifiable {
 }
 
 
-// MARK: - CORES DO PERFIL
+// MARK: - COR DO PERFIL
 
 enum CorPerfil: String, Codable, CaseIterable, Identifiable {
 
@@ -155,27 +276,6 @@ enum CorPerfil: String, Codable, CaseIterable, Identifiable {
 
     var id: String {
         rawValue
-    }
-
-    var nome: String {
-
-        switch self {
-
-        case .rosa:
-            return "Rosa"
-
-        case .roxo:
-            return "Roxo"
-
-        case .azul:
-            return "Azul"
-
-        case .verde:
-            return "Verde"
-
-        case .laranja:
-            return "Laranja"
-        }
     }
 
     var cor: Color {
@@ -206,10 +306,7 @@ enum CorPerfil: String, Codable, CaseIterable, Identifiable {
 struct PerfilUsuario: Codable, Identifiable {
 
     var email: String
-
-    // Optional para contas antigas continuarem funcionando
     var apelido: String?
-
     var corPerfil: CorPerfil
     var fotoData: Data?
     var locaisTrabalhados: [LocalTrabalhado]
@@ -234,7 +331,7 @@ struct PerfilUsuario: Codable, Identifiable {
 }
 
 
-// MARK: - STORE DE PERFIL
+// MARK: - PERFIL STORE
 
 class PerfilStore: ObservableObject {
 
@@ -255,7 +352,6 @@ class PerfilStore: ObservableObject {
                 $0.email == email
             }
         ) {
-
             return perfil
         }
 
@@ -343,15 +439,13 @@ class PerfilStore: ObservableObject {
         localID: String
     ) -> Bool {
 
-        let perfil = perfil(
+        perfil(
             email: email
         )
-
-        return perfil
-            .locaisTrabalhados
-            .contains {
-                $0.id == localID
-            }
+        .locaisTrabalhados
+        .contains {
+            $0.id == localID
+        }
     }
 
     func alternarLocal(
@@ -400,7 +494,6 @@ class PerfilStore: ObservableObject {
                 $0.email == email
             }
         ) {
-
             return indice
         }
 
@@ -472,8 +565,10 @@ class PerfilStore: ObservableObject {
         )
 
         let tamanho = CGSize(
-            width: imagem.size.width * escala,
-            height: imagem.size.height * escala
+            width:
+                imagem.size.width * escala,
+            height:
+                imagem.size.height * escala
         )
 
         let renderer = UIGraphicsImageRenderer(
@@ -503,7 +598,6 @@ class PerfilStore: ObservableObject {
 struct AvatarPerfilView: View {
 
     let perfil: PerfilUsuario
-
     var tamanho: CGFloat = 48
 
     var body: some View {
@@ -543,7 +637,8 @@ struct AvatarPerfilView: View {
                 )
                 .font(
                     .system(
-                        size: tamanho * 0.43
+                        size:
+                            tamanho * 0.43
                     )
                 )
                 .foregroundColor(
@@ -696,9 +791,8 @@ class LocalAuthStore: ObservableObject {
             email: emailLimpo
         )
 
-        let novasContas = contas + [
-            novaConta
-        ]
+        let novasContas =
+            contas + [novaConta]
 
         guard let dados = try? JSONEncoder().encode(
             novasContas
@@ -799,7 +893,6 @@ class LocalAuthStore: ObservableObject {
         mensagemErro = ""
 
         usuarioAtual = conta
-
         mostrarBoasVindas = true
 
         UserDefaults.standard.set(
@@ -809,7 +902,6 @@ class LocalAuthStore: ObservableObject {
     }
 
     func continuarParaApp() {
-
         mostrarBoasVindas = false
     }
 
@@ -818,7 +910,6 @@ class LocalAuthStore: ObservableObject {
         mensagemErro = ""
 
         usuarioAtual = nil
-
         mostrarBoasVindas = false
 
         UserDefaults.standard.removeObject(
@@ -834,7 +925,6 @@ class LocalAuthStore: ObservableObject {
         guard let dados = senha.data(
             using: .utf8
         ) else {
-
             return false
         }
 
@@ -867,7 +957,6 @@ class LocalAuthStore: ObservableObject {
         )
 
         if resultado == errSecSuccess {
-
             return true
         }
 
@@ -922,7 +1011,6 @@ class LocalAuthStore: ObservableObject {
             let dados = resultado as? Data
 
         else {
-
             return nil
         }
 
@@ -958,8 +1046,7 @@ class LocalizacaoManager:
 
     func solicitarPermissao() {
 
-        guard CLLocationManager
-            .locationServicesEnabled()
+        guard CLLocationManager.locationServicesEnabled()
         else {
 
             mensagem =
@@ -1033,7 +1120,6 @@ class LocalizacaoManager:
             }
 
         default:
-
             break
         }
     }
@@ -1075,14 +1161,13 @@ class LocalizacaoManager:
 }
 
 
-// MARK: - STORE DAS AVALIAÇÕES
+// MARK: - AVALIAÇÕES STORE
 
 class AvaliacoesStore: ObservableObject {
 
     @Published var avaliacoes: [AvaliacaoLocal] = []
 
-    private let chave =
-        "jobrate.avaliacoes"
+    private let chave = "jobrate.avaliacoes"
 
     init() {
         carregar()
@@ -1097,21 +1182,13 @@ class AvaliacoesStore: ObservableObject {
     ) {
 
         let avaliacao = AvaliacaoLocal(
-
             id: UUID(),
-
             localID: local.id,
-
             localNome: local.nome,
-
             emailAutor: email,
-
             estrelas: estrelas,
-
             comentario: comentario,
-
             categorias: categorias,
-
             data: Date()
         )
 
@@ -1174,7 +1251,6 @@ class AvaliacoesStore: ObservableObject {
             )
 
         else {
-
             return
         }
 
@@ -1183,7 +1259,7 @@ class AvaliacoesStore: ObservableObject {
 }
 
 
-// MARK: - PESQUISA MAPKIT
+// MARK: - PESQUISA MAPA
 
 class PesquisaLocaisModel:
     NSObject,
@@ -1191,7 +1267,6 @@ class PesquisaLocaisModel:
     MKLocalSearchCompleterDelegate {
 
     @Published var texto = "" {
-
         didSet {
             atualizarPesquisa()
         }
@@ -1201,7 +1276,6 @@ class PesquisaLocaisModel:
         [MKLocalSearchCompletion] = []
 
     @Published var carregando = false
-
     @Published var mensagemErro = ""
 
     private let completer =
@@ -1286,13 +1360,10 @@ class PesquisaLocaisModel:
     func limpar() {
 
         texto = ""
-
         sugestoes = []
-
         mensagemErro = ""
 
         completer.cancel()
-
         buscaAtual?.cancel()
     }
 
@@ -1304,9 +1375,7 @@ class PesquisaLocaisModel:
 
             self.sugestoes =
                 Array(
-                    completer
-                        .results
-                        .prefix(7)
+                    completer.results.prefix(7)
                 )
         }
     }
@@ -1330,7 +1399,6 @@ class PesquisaLocaisModel:
     ) {
 
         carregando = true
-
         mensagemErro = ""
 
         buscaAtual?.cancel()
@@ -1425,7 +1493,6 @@ class PesquisaLocaisModel:
         }
 
         carregando = true
-
         mensagemErro = ""
 
         buscaAtual?.cancel()
@@ -1516,7 +1583,6 @@ struct MapaPrincipalView:
         Int
 
     func makeCoordinator() -> Coordinator {
-
         Coordinator()
     }
 
@@ -1559,7 +1625,6 @@ struct MapaPrincipalView:
         mapa.removeAnnotations(
 
             mapa.annotations.filter {
-
                 !($0 is MKUserLocation)
             }
         )
@@ -1569,10 +1634,8 @@ struct MapaPrincipalView:
 
             let coordenada =
                 CLLocationCoordinate2D(
-
                     latitude:
                         local.latitude,
-
                     longitude:
                         local.longitude
                 )
@@ -1603,16 +1666,20 @@ struct MapaPrincipalView:
 
                     MKCoordinateRegion(
 
-                        center: coordenada,
+                        center:
+                            coordenada,
 
                         span:
                             MKCoordinateSpan(
-                                latitudeDelta: 0.02,
-                                longitudeDelta: 0.02
+                                latitudeDelta:
+                                    0.02,
+                                longitudeDelta:
+                                    0.02
                             )
                     ),
 
-                    animated: true
+                    animated:
+                        true
                 )
             }
 
@@ -1628,11 +1695,13 @@ struct MapaPrincipalView:
 
                 context
                 .coordinator
-                .ultimoToken != centralizarToken {
+                .ultimoToken
+                != centralizarToken {
 
                 context
                     .coordinator
-                    .jaCentralizou = true
+                    .jaCentralizou =
+                    true
 
                 context
                     .coordinator
@@ -1641,24 +1710,27 @@ struct MapaPrincipalView:
 
                 context
                     .coordinator
-                    .ultimoLocalID = nil
+                    .ultimoLocalID =
+                    nil
 
                 mapa.setRegion(
 
                     MKCoordinateRegion(
 
                         center:
-                            localizacao
-                                .coordinate,
+                            localizacao.coordinate,
 
                         span:
                             MKCoordinateSpan(
-                                latitudeDelta: 0.025,
-                                longitudeDelta: 0.025
+                                latitudeDelta:
+                                    0.025,
+                                longitudeDelta:
+                                    0.025
                             )
                     ),
 
-                    animated: true
+                    animated:
+                        true
                 )
             }
         }
@@ -1678,7 +1750,8 @@ struct MapaPrincipalView:
 struct AppleMapLocalView:
     UIViewRepresentable {
 
-    let local: LocalEncontrado
+    let local:
+        LocalEncontrado
 
     func makeUIView(
         context: Context
@@ -1687,8 +1760,11 @@ struct AppleMapLocalView:
         let mapa =
             MKMapView()
 
-        mapa.isZoomEnabled = true
-        mapa.isScrollEnabled = true
+        mapa.isZoomEnabled =
+            true
+
+        mapa.isScrollEnabled =
+            true
 
         return mapa
     }
@@ -1700,10 +1776,8 @@ struct AppleMapLocalView:
 
         let coordenada =
             CLLocationCoordinate2D(
-
                 latitude:
                     local.latitude,
-
                 longitude:
                     local.longitude
             )
@@ -1729,16 +1803,20 @@ struct AppleMapLocalView:
 
             MKCoordinateRegion(
 
-                center: coordenada,
+                center:
+                    coordenada,
 
                 span:
                     MKCoordinateSpan(
-                        latitudeDelta: 0.012,
-                        longitudeDelta: 0.012
+                        latitudeDelta:
+                            0.012,
+                        longitudeDelta:
+                            0.012
                     )
             ),
 
-            animated: true
+            animated:
+                true
         )
     }
 }
@@ -1750,7 +1828,8 @@ struct FundoCircular<
     Conteudo: View
 >: View {
 
-    let conteudo: Conteudo
+    let conteudo:
+        Conteudo
 
     init(
         @ViewBuilder
@@ -1873,6 +1952,10 @@ struct ContentView: View {
     private var perfilStore =
         PerfilStore()
 
+    @StateObject
+    private var reacoesStore =
+        ReacoesStore()
+
     var body: some View {
 
         Group {
@@ -1894,7 +1977,9 @@ struct ContentView: View {
                             avaliacoesStore:
                                 avaliacoesStore,
                             perfilStore:
-                                perfilStore
+                                perfilStore,
+                            reacoesStore:
+                                reacoesStore
                         )
                     }
                 }
@@ -1957,9 +2042,6 @@ struct LoginView: View {
                 Text(
                     "Entre na sua conta"
                 )
-                .font(
-                    .subheadline
-                )
                 .foregroundColor(
                     .gray
                 )
@@ -1973,9 +2055,6 @@ struct LoginView: View {
                     text: $email
                 )
                 .keyboardType(
-                    .emailAddress
-                )
-                .textContentType(
                     .emailAddress
                 )
                 .textInputAutocapitalization(
@@ -1998,9 +2077,6 @@ struct LoginView: View {
                     "Senha",
                     text: $senha
                 )
-                .textContentType(
-                    .password
-                )
                 .padding()
                 .frame(
                     height: 52
@@ -2013,9 +2089,7 @@ struct LoginView: View {
                     12
                 )
 
-                if !auth
-                    .mensagemErro
-                    .isEmpty {
+                if !auth.mensagemErro.isEmpty {
 
                     Text(
                         auth.mensagemErro
@@ -2161,11 +2235,10 @@ struct CadastroView: View {
                     15
                 )
 
-                // APELIDO
-
                 TextField(
                     "Apelido",
-                    text: $apelido
+                    text:
+                        $apelido
                 )
                 .textInputAutocapitalization(
                     .words
@@ -2183,16 +2256,12 @@ struct CadastroView: View {
                     12
                 )
 
-                // E-MAIL
-
                 TextField(
                     "E-mail",
-                    text: $email
+                    text:
+                        $email
                 )
                 .keyboardType(
-                    .emailAddress
-                )
-                .textContentType(
                     .emailAddress
                 )
                 .textInputAutocapitalization(
@@ -2213,10 +2282,8 @@ struct CadastroView: View {
 
                 SecureField(
                     "Senha",
-                    text: $senha
-                )
-                .textContentType(
-                    .newPassword
+                    text:
+                        $senha
                 )
                 .padding()
                 .frame(
@@ -2232,10 +2299,8 @@ struct CadastroView: View {
 
                 SecureField(
                     "Confirmar senha",
-                    text: $confirmarSenha
-                )
-                .textContentType(
-                    .newPassword
+                    text:
+                        $confirmarSenha
                 )
                 .padding()
                 .frame(
@@ -2262,9 +2327,7 @@ struct CadastroView: View {
                     )
                 }
 
-                if !auth
-                    .mensagemErro
-                    .isEmpty {
+                if !auth.mensagemErro.isEmpty {
 
                     Text(
                         auth.mensagemErro
@@ -2369,7 +2432,7 @@ struct CadastroView: View {
 }
 
 
-// MARK: - BOAS-VINDAS
+// MARK: - BOAS VINDAS
 
 struct BoasVindasView: View {
 
@@ -2480,8 +2543,7 @@ struct BoasVindasView: View {
 
                     Button {
 
-                        auth
-                            .continuarParaApp()
+                        auth.continuarParaApp()
 
                     } label: {
 
@@ -2505,10 +2567,6 @@ struct BoasVindasView: View {
                     )
                     .cornerRadius(
                         15
-                    )
-                    .padding(
-                        .bottom,
-                        30
                     )
                 }
                 .padding(
@@ -2536,14 +2594,17 @@ struct InfoCard: View {
     var body: some View {
 
         HStack(
-            alignment: .top,
-            spacing: 15
+            alignment:
+                .top,
+            spacing:
+                15
         ) {
 
             ZStack {
 
                 RoundedRectangle(
-                    cornerRadius: 14
+                    cornerRadius:
+                        14
                 )
                 .fill(
                     Color.pink
@@ -2555,7 +2616,8 @@ struct InfoCard: View {
                 )
 
                 Image(
-                    systemName: icone
+                    systemName:
+                        icone
                 )
                 .foregroundColor(
                     .pink
@@ -2566,8 +2628,10 @@ struct InfoCard: View {
             }
 
             VStack(
-                alignment: .leading,
-                spacing: 5
+                alignment:
+                    .leading,
+                spacing:
+                    5
             ) {
 
                 Text(
@@ -2617,6 +2681,10 @@ struct HomeView: View {
     var perfilStore:
         PerfilStore
 
+    @ObservedObject
+    var reacoesStore:
+        ReacoesStore
+
     @StateObject
     private var pesquisa =
         PesquisaLocaisModel()
@@ -2637,7 +2705,8 @@ struct HomeView: View {
     private var centralizarToken =
         0
 
-    private var email: String {
+    private var email:
+        String {
 
         auth
             .usuarioAtual?
@@ -2650,7 +2719,8 @@ struct HomeView: View {
 
         perfilStore
             .perfil(
-                email: email
+                email:
+                    email
             )
     }
 
@@ -2688,19 +2758,25 @@ struct HomeView: View {
                     NavigationLink {
 
                         PerfilView(
-                            email: email,
+                            email:
+                                email,
                             perfilStore:
                                 perfilStore,
                             avaliacoesStore:
                                 avaliacoesStore,
-                            auth: auth
+                            reacoesStore:
+                                reacoesStore,
+                            auth:
+                                auth
                         )
 
                     } label: {
 
                         AvatarPerfilView(
-                            perfil: perfil,
-                            tamanho: 42
+                            perfil:
+                                perfil,
+                            tamanho:
+                                42
                         )
                     }
                 }
@@ -2710,7 +2786,8 @@ struct HomeView: View {
                 )
                 .clipShape(
                     RoundedRectangle(
-                        cornerRadius: 18
+                        cornerRadius:
+                            18
                     )
                 )
                 .padding(
@@ -2769,8 +2846,10 @@ struct HomeView: View {
                 )
 
                 VStack(
-                    alignment: .leading,
-                    spacing: 14
+                    alignment:
+                        .leading,
+                    spacing:
+                        14
                 ) {
 
                     Text(
@@ -2778,8 +2857,10 @@ struct HomeView: View {
                     )
                     .font(
                         .system(
-                            size: 25,
-                            weight: .bold
+                            size:
+                                25,
+                            weight:
+                                .bold
                         )
                     )
 
@@ -2892,7 +2973,8 @@ struct HomeView: View {
                                             .sugestoes
                                             .enumerated()
                                     ),
-                                    id: \.offset
+                                    id:
+                                        \.offset
                                 ) {
                                     indice,
                                     sugestao in
@@ -2970,7 +3052,8 @@ struct HomeView: View {
                             }
                         }
                         .frame(
-                            maxHeight: 250
+                            maxHeight:
+                                250
                         )
                     }
                 }
@@ -2982,15 +3065,18 @@ struct HomeView: View {
                 )
                 .clipShape(
                     RoundedRectangle(
-                        cornerRadius: 28
+                        cornerRadius:
+                            28
                     )
                 )
                 .shadow(
                     color:
                         Color.black
                         .opacity(0.12),
-                    radius: 15,
-                    y: -3
+                    radius:
+                        15,
+                    y:
+                        -3
                 )
                 .padding(
                     .horizontal,
@@ -3024,7 +3110,8 @@ struct HomeView: View {
 
                 pesquisa
                     .atualizarRegiao(
-                        com: coordenada
+                        com:
+                            coordenada
                     )
             }
         }
@@ -3037,13 +3124,16 @@ struct HomeView: View {
                 localSelecionado {
 
                 DetalheLocalView(
-                    local: local,
+                    local:
+                        local,
                     emailUsuario:
                         email,
                     avaliacoesStore:
                         avaliacoesStore,
                     perfilStore:
-                        perfilStore
+                        perfilStore,
+                    reacoesStore:
+                        reacoesStore
                 )
             }
         }
@@ -3058,18 +3148,21 @@ struct HomeView: View {
             return
         }
 
-        localSelecionado = local
+        localSelecionado =
+            local
 
-        abrirDetalhe = true
+        abrirDetalhe =
+            true
     }
 }
 
 
-// MARK: - PERFIL
+// MARK: - PERFIL DO PRÓPRIO USUÁRIO
 
 struct PerfilView: View {
 
-    let email: String
+    let email:
+        String
 
     @ObservedObject
     var perfilStore:
@@ -3080,6 +3173,10 @@ struct PerfilView: View {
         AvaliacoesStore
 
     @ObservedObject
+    var reacoesStore:
+        ReacoesStore
+
+    @ObservedObject
     var auth:
         LocalAuthStore
 
@@ -3088,17 +3185,20 @@ struct PerfilView: View {
         PhotosPickerItem?
 
     @State
-    private var apelidoEdicao = ""
+    private var apelidoEdicao =
+        ""
 
     @State
-    private var mensagemApelido = ""
+    private var mensagemApelido =
+        ""
 
     private var perfil:
         PerfilUsuario {
 
         perfilStore
             .perfil(
-                email: email
+                email:
+                    email
             )
     }
 
@@ -3107,7 +3207,8 @@ struct PerfilView: View {
 
         avaliacoesStore
             .avaliacoes(
-                doUsuario: email
+                doUsuario:
+                    email
             )
     }
 
@@ -3116,13 +3217,13 @@ struct PerfilView: View {
         ScrollView {
 
             VStack(
-                spacing: 24
+                spacing:
+                    24
             ) {
 
-                // FOTO + APELIDO
-
                 VStack(
-                    spacing: 14
+                    spacing:
+                        14
                 ) {
 
                     PhotosPicker(
@@ -3138,8 +3239,10 @@ struct PerfilView: View {
                         ) {
 
                             AvatarPerfilView(
-                                perfil: perfil,
-                                tamanho: 110
+                                perfil:
+                                    perfil,
+                                tamanho:
+                                    110
                             )
 
                             Image(
@@ -3153,8 +3256,10 @@ struct PerfilView: View {
                                 .white
                             )
                             .frame(
-                                width: 34,
-                                height: 34
+                                width:
+                                    34,
+                                height:
+                                    34
                             )
                             .background(
                                 perfil
@@ -3168,7 +3273,8 @@ struct PerfilView: View {
                     }
 
                     Text(
-                        perfil.nomeExibicao
+                        perfil
+                            .nomeExibicao
                     )
                     .font(
                         .title2
@@ -3185,7 +3291,8 @@ struct PerfilView: View {
                         .secondary
                     )
 
-                    if perfil.fotoData != nil {
+                    if perfil
+                        .fotoData != nil {
 
                         Button(
                             "Remover foto"
@@ -3193,7 +3300,8 @@ struct PerfilView: View {
 
                             perfilStore
                                 .removerFoto(
-                                    email: email
+                                    email:
+                                        email
                                 )
                         }
                         .font(
@@ -3208,16 +3316,12 @@ struct PerfilView: View {
                     maxWidth:
                         .infinity
                 )
-                .padding(
-                    .top,
-                    10
-                )
-
-                // EDITAR APELIDO
 
                 VStack(
-                    alignment: .leading,
-                    spacing: 12
+                    alignment:
+                        .leading,
+                    spacing:
+                        12
                 ) {
 
                     Text(
@@ -3232,10 +3336,6 @@ struct PerfilView: View {
                         text:
                             $apelidoEdicao
                     )
-                    .textInputAutocapitalization(
-                        .words
-                    )
-                    .autocorrectionDisabled()
                     .padding()
                     .background(
                         Color.gray
@@ -3245,7 +3345,8 @@ struct PerfilView: View {
                         12
                     )
 
-                    if !mensagemApelido.isEmpty {
+                    if !mensagemApelido
+                        .isEmpty {
 
                         Text(
                             mensagemApelido
@@ -3276,7 +3377,8 @@ struct PerfilView: View {
                                 .infinity
                         )
                         .frame(
-                            height: 46
+                            height:
+                                46
                         )
                     }
                     .foregroundColor(
@@ -3301,11 +3403,11 @@ struct PerfilView: View {
                     18
                 )
 
-                // COR DO PERFIL
-
                 VStack(
-                    alignment: .leading,
-                    spacing: 14
+                    alignment:
+                        .leading,
+                    spacing:
+                        14
                 ) {
 
                     Text(
@@ -3316,7 +3418,8 @@ struct PerfilView: View {
                     )
 
                     HStack(
-                        spacing: 18
+                        spacing:
+                            18
                     ) {
 
                         ForEach(
@@ -3329,8 +3432,10 @@ struct PerfilView: View {
 
                                 perfilStore
                                     .atualizarCor(
-                                        email: email,
-                                        cor: cor
+                                        email:
+                                            email,
+                                        cor:
+                                            cor
                                     )
 
                             } label: {
@@ -3342,8 +3447,10 @@ struct PerfilView: View {
                                             cor.cor
                                         )
                                         .frame(
-                                            width: 42,
-                                            height: 42
+                                            width:
+                                                42,
+                                            height:
+                                                42
                                         )
 
                                     if perfil
@@ -3380,15 +3487,15 @@ struct PerfilView: View {
                     18
                 )
 
-                // NÚMEROS
-
                 HStack(
-                    spacing: 14
+                    spacing:
+                        14
                 ) {
 
                     PerfilNumeroCard(
                         numero:
-                            minhasAvaliacoes.count,
+                            minhasAvaliacoes
+                                .count,
                         titulo:
                             "Avaliações",
                         icone:
@@ -3415,11 +3522,11 @@ struct PerfilView: View {
                     )
                 }
 
-                // ONDE TRABALHEI
-
                 VStack(
-                    alignment: .leading,
-                    spacing: 14
+                    alignment:
+                        .leading,
+                    spacing:
+                        14
                 ) {
 
                     Text(
@@ -3437,15 +3544,8 @@ struct PerfilView: View {
                         Text(
                             "Você ainda não adicionou nenhum local."
                         )
-                        .font(
-                            .subheadline
-                        )
                         .foregroundColor(
                             .secondary
-                        )
-                        .padding(
-                            .vertical,
-                            12
                         )
 
                     } else {
@@ -3457,7 +3557,8 @@ struct PerfilView: View {
                             local in
 
                             HStack(
-                                spacing: 14
+                                spacing:
+                                    14
                             ) {
 
                                 Image(
@@ -3469,23 +3570,12 @@ struct PerfilView: View {
                                         .corPerfil
                                         .cor
                                 )
-                                .frame(
-                                    width: 42,
-                                    height: 42
-                                )
-                                .background(
-                                    perfil
-                                        .corPerfil
-                                        .cor
-                                        .opacity(0.12)
-                                )
-                                .clipShape(
-                                    Circle()
-                                )
 
                                 VStack(
-                                    alignment: .leading,
-                                    spacing: 4
+                                    alignment:
+                                        .leading,
+                                    spacing:
+                                        4
                                 ) {
 
                                     Text(
@@ -3502,16 +3592,11 @@ struct PerfilView: View {
                                     .foregroundColor(
                                         .secondary
                                     )
-                                    .lineLimit(
-                                        2
-                                    )
                                 }
 
                                 Spacer()
                             }
-                            .padding(
-                                14
-                            )
+                            .padding()
                             .background(
                                 Color.white
                             )
@@ -3528,11 +3613,11 @@ struct PerfilView: View {
                         .leading
                 )
 
-                // MINHAS AVALIAÇÕES
-
                 VStack(
-                    alignment: .leading,
-                    spacing: 14
+                    alignment:
+                        .leading,
+                    spacing:
+                        14
                 ) {
 
                     Text(
@@ -3552,10 +3637,6 @@ struct PerfilView: View {
                         .foregroundColor(
                             .secondary
                         )
-                        .padding(
-                            .vertical,
-                            12
-                        )
 
                     } else {
 
@@ -3570,7 +3651,9 @@ struct PerfilView: View {
                                 cor:
                                     perfil
                                         .corPerfil
-                                        .cor
+                                        .cor,
+                                reacoesStore:
+                                    reacoesStore
                             )
                         }
                     }
@@ -3583,7 +3666,8 @@ struct PerfilView: View {
                 )
 
                 Button(
-                    role: .destructive
+                    role:
+                        .destructive
                 ) {
 
                     auth.sair()
@@ -3601,7 +3685,8 @@ struct PerfilView: View {
                             .infinity
                     )
                     .frame(
-                        height: 52
+                        height:
+                            52
                     )
                 }
                 .background(
@@ -3610,10 +3695,6 @@ struct PerfilView: View {
                 )
                 .cornerRadius(
                     14
-                )
-                .padding(
-                    .bottom,
-                    20
                 )
             }
             .padding(
@@ -3632,20 +3713,15 @@ struct PerfilView: View {
         .navigationBarTitleDisplayMode(
             .inline
         )
-        .tint(
-            perfil
-                .corPerfil
-                .cor
-        )
         .onAppear {
 
             apelidoEdicao =
                 perfil.apelido ?? ""
         }
         .onChange(
-            of: fotoSelecionada
+            of:
+                fotoSelecionada
         ) {
-            _,
             novoItem in
 
             guard let novoItem else {
@@ -3654,17 +3730,21 @@ struct PerfilView: View {
 
             Task {
 
-                if let dados = try? await novoItem
-                    .loadTransferable(
-                        type: Data.self
-                    ) {
+                if let dados =
+                    try? await novoItem
+                        .loadTransferable(
+                            type:
+                                Data.self
+                        ) {
 
                     await MainActor.run {
 
                         perfilStore
                             .atualizarFoto(
-                                email: email,
-                                dados: dados
+                                email:
+                                    email,
+                                dados:
+                                    dados
                             )
                     }
                 }
@@ -3674,14 +3754,13 @@ struct PerfilView: View {
 
     private func salvarApelido() {
 
-        mensagemApelido = ""
-
-        let apelidoLimpo = apelidoEdicao
+        let nome = apelidoEdicao
             .trimmingCharacters(
-                in: .whitespacesAndNewlines
+                in:
+                    .whitespacesAndNewlines
             )
 
-        if apelidoLimpo.count < 2 {
+        if nome.count < 2 {
 
             mensagemApelido =
                 "Use pelo menos 2 caracteres."
@@ -3689,7 +3768,7 @@ struct PerfilView: View {
             return
         }
 
-        if apelidoLimpo.count > 25 {
+        if nome.count > 25 {
 
             mensagemApelido =
                 "Use no máximo 25 caracteres."
@@ -3699,13 +3778,11 @@ struct PerfilView: View {
 
         perfilStore
             .atualizarApelido(
-                email: email,
+                email:
+                    email,
                 apelido:
-                    apelidoLimpo
+                    nome
             )
-
-        apelidoEdicao =
-            apelidoLimpo
 
         mensagemApelido =
             "Apelido salvo!"
@@ -3713,23 +3790,308 @@ struct PerfilView: View {
 }
 
 
-// MARK: - CARD DE NÚMEROS
+// MARK: - PERFIL PÚBLICO
+
+struct PerfilPublicoView: View {
+
+    let email:
+        String
+
+    @ObservedObject
+    var perfilStore:
+        PerfilStore
+
+    @ObservedObject
+    var avaliacoesStore:
+        AvaliacoesStore
+
+    @ObservedObject
+    var reacoesStore:
+        ReacoesStore
+
+    private var perfil:
+        PerfilUsuario {
+
+        perfilStore
+            .perfil(
+                email:
+                    email
+            )
+    }
+
+    // IMPORTANTE:
+    // apenas avaliações positivas aparecem aqui,
+    // preservando o anonimato das ruins/neutras.
+
+    private var avaliacoesPublicas:
+        [AvaliacaoLocal] {
+
+        avaliacoesStore
+            .avaliacoes(
+                doUsuario:
+                    email
+            )
+            .filter {
+                $0.estrelas >= 4
+            }
+    }
+
+    var body: some View {
+
+        ScrollView {
+
+            VStack(
+                spacing:
+                    24
+            ) {
+
+                VStack(
+                    spacing:
+                        12
+                ) {
+
+                    AvatarPerfilView(
+                        perfil:
+                            perfil,
+                        tamanho:
+                            110
+                    )
+
+                    Text(
+                        perfil
+                            .nomeExibicao
+                    )
+                    .font(
+                        .title
+                    )
+                    .bold()
+                }
+                .padding(
+                    .top,
+                    10
+                )
+
+                HStack(
+                    spacing:
+                        14
+                ) {
+
+                    PerfilNumeroCard(
+                        numero:
+                            avaliacoesPublicas
+                                .count,
+                        titulo:
+                            "Avaliações",
+                        icone:
+                            "star.fill",
+                        cor:
+                            perfil
+                                .corPerfil
+                                .cor
+                    )
+
+                    PerfilNumeroCard(
+                        numero:
+                            perfil
+                                .locaisTrabalhados
+                                .count,
+                        titulo:
+                            "Locais",
+                        icone:
+                            "building.2.fill",
+                        cor:
+                            perfil
+                                .corPerfil
+                                .cor
+                    )
+                }
+
+                VStack(
+                    alignment:
+                        .leading,
+                    spacing:
+                        14
+                ) {
+
+                    Text(
+                        "Onde trabalhou"
+                    )
+                    .font(
+                        .title2
+                    )
+                    .bold()
+
+                    if perfil
+                        .locaisTrabalhados
+                        .isEmpty {
+
+                        Text(
+                            "Nenhum local adicionado."
+                        )
+                        .foregroundColor(
+                            .secondary
+                        )
+
+                    } else {
+
+                        ForEach(
+                            perfil
+                                .locaisTrabalhados
+                        ) {
+                            local in
+
+                            HStack {
+
+                                Image(
+                                    systemName:
+                                        "building.2.fill"
+                                )
+                                .foregroundColor(
+                                    perfil
+                                        .corPerfil
+                                        .cor
+                                )
+
+                                VStack(
+                                    alignment:
+                                        .leading
+                                ) {
+
+                                    Text(
+                                        local.nome
+                                    )
+                                    .bold()
+
+                                    Text(
+                                        local.endereco
+                                    )
+                                    .font(
+                                        .caption
+                                    )
+                                    .foregroundColor(
+                                        .secondary
+                                    )
+                                }
+
+                                Spacer()
+                            }
+                            .padding()
+                            .background(
+                                Color.white
+                            )
+                            .cornerRadius(
+                                14
+                            )
+                        }
+                    }
+                }
+                .frame(
+                    maxWidth:
+                        .infinity,
+                    alignment:
+                        .leading
+                )
+
+                VStack(
+                    alignment:
+                        .leading,
+                    spacing:
+                        14
+                ) {
+
+                    Text(
+                        "Avaliações"
+                    )
+                    .font(
+                        .title2
+                    )
+                    .bold()
+
+                    if avaliacoesPublicas
+                        .isEmpty {
+
+                        Text(
+                            "Nenhuma avaliação pública."
+                        )
+                        .foregroundColor(
+                            .secondary
+                        )
+
+                    } else {
+
+                        ForEach(
+                            avaliacoesPublicas
+                        ) {
+                            avaliacao in
+
+                            AvaliacaoPublicaPerfilCard(
+                                avaliacao:
+                                    avaliacao,
+                                reacoesStore:
+                                    reacoesStore
+                            )
+                        }
+                    }
+                }
+                .frame(
+                    maxWidth:
+                        .infinity,
+                    alignment:
+                        .leading
+                )
+            }
+            .padding(
+                20
+            )
+        }
+        .background(
+            perfil
+                .corPerfil
+                .cor
+                .opacity(0.05)
+        )
+        .navigationTitle(
+            perfil
+                .nomeExibicao
+        )
+        .navigationBarTitleDisplayMode(
+            .inline
+        )
+        .tint(
+            perfil
+                .corPerfil
+                .cor
+        )
+    }
+}
+
+
+// MARK: - CARD NÚMERO
 
 struct PerfilNumeroCard: View {
 
-    let numero: Int
-    let titulo: String
-    let icone: String
-    let cor: Color
+    let numero:
+        Int
+
+    let titulo:
+        String
+
+    let icone:
+        String
+
+    let cor:
+        Color
 
     var body: some View {
 
         VStack(
-            spacing: 8
+            spacing:
+                8
         ) {
 
             Image(
-                systemName: icone
+                systemName:
+                    icone
             )
             .foregroundColor(
                 cor
@@ -3771,7 +4133,7 @@ struct PerfilNumeroCard: View {
 }
 
 
-// MARK: - MINHA AVALIAÇÃO
+// MARK: - MINHA AVALIAÇÃO CARD
 
 struct MinhaAvaliacaoCard: View {
 
@@ -3781,73 +4143,66 @@ struct MinhaAvaliacaoCard: View {
     let cor:
         Color
 
+    @ObservedObject
+    var reacoesStore:
+        ReacoesStore
+
     var body: some View {
 
         VStack(
-            alignment: .leading,
-            spacing: 10
+            alignment:
+                .leading,
+            spacing:
+                10
         ) {
 
-            HStack {
+            Text(
+                avaliacao
+                    .localNome
+            )
+            .bold()
+            .foregroundColor(
+                cor
+            )
 
-                Image(
-                    systemName:
-                        "building.2.fill"
-                )
-                .foregroundColor(
-                    cor
-                )
-
-                Text(
+            EstrelasView(
+                quantidade:
                     avaliacao
-                        .localNome
-                )
-                .bold()
-
-                Spacer()
-            }
-
-            HStack(
-                spacing: 3
-            ) {
-
-                ForEach(
-                    1...5,
-                    id: \.self
-                ) {
-                    estrela in
-
-                    Image(
-                        systemName:
-                            estrela <=
-                            avaliacao
-                                .estrelas
-
-                            ? "star.fill"
-
-                            : "star"
-                    )
-                    .foregroundColor(
-                        .yellow
-                    )
-                }
-            }
+                        .estrelas
+            )
 
             Text(
                 avaliacao
                     .comentario
             )
 
-            Text(
-                avaliacao
-                    .data
-                    .formatted(
-                        date:
-                            .abbreviated,
-                        time:
-                            .omitted
-                    )
-            )
+            HStack {
+
+                Label(
+                    "\(reacoesStore.quantidade(avaliacaoID: avaliacao.id, tipo: .concordar))",
+                    systemImage:
+                        "hand.thumbsup.fill"
+                )
+
+                Label(
+                    "\(reacoesStore.quantidade(avaliacaoID: avaliacao.id, tipo: .discordar))",
+                    systemImage:
+                        "hand.thumbsdown.fill"
+                )
+
+                Spacer()
+
+                Text(
+                    avaliacao
+                        .data
+                        .formatted(
+                            date:
+                                .abbreviated,
+                            time:
+                                .omitted
+                        )
+                )
+            }
             .font(
                 .caption
             )
@@ -3855,9 +4210,7 @@ struct MinhaAvaliacaoCard: View {
                 .secondary
             )
         }
-        .padding(
-            16
-        )
+        .padding()
         .background(
             Color.white
         )
@@ -3868,7 +4221,151 @@ struct MinhaAvaliacaoCard: View {
 }
 
 
-// MARK: - DETALHE DO LOCAL
+// MARK: - CARD NO PERFIL PÚBLICO
+
+struct AvaliacaoPublicaPerfilCard: View {
+
+    let avaliacao:
+        AvaliacaoLocal
+
+    @ObservedObject
+    var reacoesStore:
+        ReacoesStore
+
+    var body: some View {
+
+        VStack(
+            alignment:
+                .leading,
+            spacing:
+                10
+        ) {
+
+            Text(
+                avaliacao
+                    .localNome
+            )
+            .bold()
+
+            EstrelasView(
+                quantidade:
+                    avaliacao
+                        .estrelas
+            )
+
+            if !avaliacao
+                .categorias
+                .isEmpty {
+
+                ForEach(
+                    avaliacao
+                        .categorias,
+                    id:
+                        \.self
+                ) {
+                    categoria in
+
+                    Label(
+                        categoria,
+                        systemImage:
+                            "tag.fill"
+                    )
+                    .font(
+                        .caption
+                    )
+                    .foregroundColor(
+                        .pink
+                    )
+                }
+            }
+
+            Text(
+                avaliacao
+                    .comentario
+            )
+
+            HStack {
+
+                Label(
+                    "\(reacoesStore.quantidade(avaliacaoID: avaliacao.id, tipo: .concordar))",
+                    systemImage:
+                        "hand.thumbsup.fill"
+                )
+
+                Label(
+                    "\(reacoesStore.quantidade(avaliacaoID: avaliacao.id, tipo: .discordar))",
+                    systemImage:
+                        "hand.thumbsdown.fill"
+                )
+
+                Spacer()
+
+                Text(
+                    avaliacao
+                        .data
+                        .formatted(
+                            date:
+                                .abbreviated,
+                            time:
+                                .omitted
+                        )
+                )
+            }
+            .font(
+                .caption
+            )
+            .foregroundColor(
+                .secondary
+            )
+        }
+        .padding()
+        .background(
+            Color.white
+        )
+        .cornerRadius(
+            16
+        )
+    }
+}
+
+
+// MARK: - ESTRELAS
+
+struct EstrelasView: View {
+
+    let quantidade:
+        Int
+
+    var body: some View {
+
+        HStack(
+            spacing:
+                3
+        ) {
+
+            ForEach(
+                1...5,
+                id:
+                    \.self
+            ) {
+                estrela in
+
+                Image(
+                    systemName:
+                        estrela <= quantidade
+                        ? "star.fill"
+                        : "star"
+                )
+                .foregroundColor(
+                    .yellow
+                )
+            }
+        }
+    }
+}
+
+
+// MARK: - DETALHE LOCAL
 
 struct DetalheLocalView: View {
 
@@ -3886,6 +4383,10 @@ struct DetalheLocalView: View {
     var perfilStore:
         PerfilStore
 
+    @ObservedObject
+    var reacoesStore:
+        ReacoesStore
+
     @State
     private var filtroSelecionado:
         FiltroAvaliacao =
@@ -3896,7 +4397,8 @@ struct DetalheLocalView: View {
 
         avaliacoesStore
             .avaliacoes(
-                do: local.id
+                do:
+                    local.id
             )
     }
 
@@ -3921,7 +4423,8 @@ struct DetalheLocalView: View {
     private var avaliacoesFiltradas:
         [AvaliacaoLocal] {
 
-        switch filtroSelecionado {
+        switch
+            filtroSelecionado {
 
         case .todas:
             return avaliacoesDoLocal
@@ -3946,14 +4449,16 @@ struct DetalheLocalView: View {
         let total =
             avaliacoesDoLocal
                 .reduce(0) {
-                    $0 + $1.estrelas
+                    $0 +
+                    $1.estrelas
                 }
 
         return
             Double(total)
             /
             Double(
-                avaliacoesDoLocal.count
+                avaliacoesDoLocal
+                    .count
             )
     }
 
@@ -4000,8 +4505,7 @@ struct DetalheLocalView: View {
     private var corReputacao:
         Color {
 
-        if avaliacoesDoLocal
-            .isEmpty {
+        if avaliacoesDoLocal.isEmpty {
             return .gray
         }
 
@@ -4033,47 +4537,43 @@ struct DetalheLocalView: View {
         ScrollView {
 
             VStack(
-                alignment: .leading,
-                spacing: 22
+                alignment:
+                    .leading,
+                spacing:
+                    22
             ) {
 
                 AppleMapLocalView(
-                    local: local
+                    local:
+                        local
                 )
                 .frame(
-                    height: 235
+                    height:
+                        235
                 )
                 .clipShape(
                     RoundedRectangle(
-                        cornerRadius: 20
+                        cornerRadius:
+                            20
                     )
                 )
 
-                VStack(
-                    alignment: .leading,
-                    spacing: 8
-                ) {
+                Text(
+                    local.nome
+                )
+                .font(
+                    .title
+                )
+                .bold()
 
-                    Text(
-                        local.nome
-                    )
-                    .font(
-                        .title
-                    )
-                    .bold()
-
-                    Label(
-                        local.endereco,
-                        systemImage:
-                            "mappin.and.ellipse"
-                    )
-                    .font(
-                        .subheadline
-                    )
-                    .foregroundColor(
-                        .secondary
-                    )
-                }
+                Label(
+                    local.endereco,
+                    systemImage:
+                        "mappin.and.ellipse"
+                )
+                .foregroundColor(
+                    .secondary
+                )
 
                 Button {
 
@@ -4088,13 +4588,10 @@ struct DetalheLocalView: View {
                 } label: {
 
                     Label(
-
                         localAdicionado
-                        ? "Local Adicionado ao Perfil"
-                        : "Já Trabalhei Aqui",
-
+                        ? "Local adicionado ao meu perfil"
+                        : "Adicionar aos locais onde trabalhei",
                         systemImage:
-
                             localAdicionado
                             ? "checkmark.circle.fill"
                             : "briefcase.fill"
@@ -4105,7 +4602,8 @@ struct DetalheLocalView: View {
                             .infinity
                     )
                     .frame(
-                        height: 50
+                        height:
+                            50
                     )
                 }
                 .foregroundColor(
@@ -4125,18 +4623,18 @@ struct DetalheLocalView: View {
                     14
                 )
 
-                // REPUTAÇÃO
-
                 VStack(
-                    alignment: .leading,
-                    spacing: 15
+                    alignment:
+                        .leading,
+                    spacing:
+                        15
                 ) {
 
                     HStack {
 
                         VStack(
-                            alignment: .leading,
-                            spacing: 4
+                            alignment:
+                                .leading
                         ) {
 
                             Text(
@@ -4168,8 +4666,10 @@ struct DetalheLocalView: View {
                             )
                             .font(
                                 .system(
-                                    size: 28,
-                                    weight: .bold
+                                    size:
+                                        28,
+                                    weight:
+                                        .bold
                                 )
                             )
                         }
@@ -4185,9 +4685,12 @@ struct DetalheLocalView: View {
                         corReputacao
                     )
                     .scaleEffect(
-                        x: 1,
-                        y: 2.2,
-                        anchor: .center
+                        x:
+                            1,
+                        y:
+                            2.2,
+                        anchor:
+                            .center
                     )
 
                     HStack {
@@ -4225,26 +4728,15 @@ struct DetalheLocalView: View {
                 .background(
                     Color.white
                 )
-                .clipShape(
-                    RoundedRectangle(
-                        cornerRadius: 18
-                    )
+                .cornerRadius(
+                    18
                 )
-                .shadow(
-                    color:
-                        Color.black
-                        .opacity(0.05),
-                    radius: 8,
-                    y: 3
-                )
-
-                // NOTA
 
                 HStack {
 
                     VStack(
-                        alignment: .leading,
-                        spacing: 8
+                        alignment:
+                            .leading
                     ) {
 
                         Text(
@@ -4254,23 +4746,22 @@ struct DetalheLocalView: View {
                             .headline
                         )
 
-                        HStack(
-                            spacing: 4
-                        ) {
+                        HStack {
 
                             ForEach(
                                 1...5,
-                                id: \.self
+                                id:
+                                    \.self
                             ) {
                                 estrela in
 
                                 Image(
                                     systemName:
-                                        Double(estrela)
+                                        Double(
+                                            estrela
+                                        )
                                         <= media
-
                                         ? "star.fill"
-
                                         : "star"
                                 )
                                 .foregroundColor(
@@ -4282,19 +4773,15 @@ struct DetalheLocalView: View {
 
                     Spacer()
 
-                    VStack(
-                        alignment: .trailing,
-                        spacing: 3
-                    ) {
+                    VStack {
 
                         Text(
                             avaliacoesDoLocal
                                 .isEmpty
-
                             ? "--"
-
                             : String(
-                                format: "%.1f",
+                                format:
+                                    "%.1f",
                                 media
                             )
                         )
@@ -4318,7 +4805,8 @@ struct DetalheLocalView: View {
                 NavigationLink {
 
                     AvaliarLocalView(
-                        local: local,
+                        local:
+                            local,
                         emailUsuario:
                             emailUsuario,
                         avaliacoesStore:
@@ -4338,7 +4826,8 @@ struct DetalheLocalView: View {
                             .infinity
                     )
                     .frame(
-                        height: 55
+                        height:
+                            55
                     )
                 }
                 .foregroundColor(
@@ -4388,30 +4877,12 @@ struct DetalheLocalView: View {
                 if avaliacoesFiltradas
                     .isEmpty {
 
-                    VStack(
-                        spacing: 12
-                    ) {
-
-                        Image(
-                            systemName:
-                                "bubble.left"
-                        )
-                        .font(
-                            .system(
-                                size: 38
-                            )
-                        )
-                        .foregroundColor(
-                            .secondary
-                        )
-
-                        Text(
-                            "Nenhuma avaliação encontrada."
-                        )
-                        .foregroundColor(
-                            .secondary
-                        )
-                    }
+                    Text(
+                        "Nenhuma avaliação encontrada."
+                    )
+                    .foregroundColor(
+                        .secondary
+                    )
                     .frame(
                         maxWidth:
                             .infinity
@@ -4431,8 +4902,14 @@ struct DetalheLocalView: View {
                         AvaliacaoCard(
                             avaliacao:
                                 avaliacao,
+                            emailUsuario:
+                                emailUsuario,
                             perfilStore:
-                                perfilStore
+                                perfilStore,
+                            avaliacoesStore:
+                                avaliacoesStore,
+                            reacoesStore:
+                                reacoesStore
                         )
                     }
                 }
@@ -4490,17 +4967,11 @@ struct AvaliarLocalView: View {
     private let categorias = [
 
         "Assédio ou comportamento inadequado",
-
         "Desigualdade salarial",
-
         "Discriminação de gênero",
-
         "Desrespeito à identidade de gênero",
-
         "Falta de oportunidades",
-
         "Ambiente acolhedor",
-
         "Igualdade de oportunidades"
     ]
 
@@ -4509,8 +4980,10 @@ struct AvaliarLocalView: View {
         ScrollView {
 
             VStack(
-                alignment: .leading,
-                spacing: 22
+                alignment:
+                    .leading,
+                spacing:
+                    22
             ) {
 
                 Text(
@@ -4528,13 +5001,12 @@ struct AvaliarLocalView: View {
                     .headline
                 )
 
-                HStack(
-                    spacing: 12
-                ) {
+                HStack {
 
                     ForEach(
                         1...5,
-                        id: \.self
+                        id:
+                            \.self
                     ) {
                         estrela in
 
@@ -4547,15 +5019,15 @@ struct AvaliarLocalView: View {
 
                             Image(
                                 systemName:
-                                    estrela <= estrelas
-
+                                    estrela <=
+                                    estrelas
                                     ? "star.fill"
-
                                     : "star"
                             )
                             .font(
                                 .system(
-                                    size: 34
+                                    size:
+                                        34
                                 )
                             )
                             .foregroundColor(
@@ -4574,19 +5046,10 @@ struct AvaliarLocalView: View {
                     .headline
                 )
 
-                Text(
-                    "Você pode marcar mais de uma opção."
-                )
-                .font(
-                    .caption
-                )
-                .foregroundColor(
-                    .secondary
-                )
-
                 ForEach(
                     categorias,
-                    id: \.self
+                    id:
+                        \.self
                 ) {
                     categoria in
 
@@ -4620,9 +5083,7 @@ struct AvaliarLocalView: View {
                                     .contains(
                                         categoria
                                     )
-
                                     ? "checkmark.circle.fill"
-
                                     : "circle"
                             )
                             .foregroundColor(
@@ -4646,12 +5107,7 @@ struct AvaliarLocalView: View {
                             12
                         )
                     }
-                    .buttonStyle(
-                        .plain
-                    )
                 }
-
-                Divider()
 
                 Text(
                     "Conte sua experiência"
@@ -4660,22 +5116,13 @@ struct AvaliarLocalView: View {
                     .headline
                 )
 
-                Text(
-                    "Evite publicar nomes, telefones ou dados pessoais de outras pessoas."
-                )
-                .font(
-                    .caption
-                )
-                .foregroundColor(
-                    .secondary
-                )
-
                 TextEditor(
                     text:
                         $comentario
                 )
                 .frame(
-                    minHeight: 150
+                    minHeight:
+                        150
                 )
                 .padding(
                     8
@@ -4696,9 +5143,6 @@ struct AvaliarLocalView: View {
                     .foregroundColor(
                         .red
                     )
-                    .font(
-                        .caption
-                    )
                 }
 
                 Button {
@@ -4707,10 +5151,8 @@ struct AvaliarLocalView: View {
 
                 } label: {
 
-                    Label(
-                        "Publicar avaliação",
-                        systemImage:
-                            "paperplane.fill"
+                    Text(
+                        "Publicar avaliação"
                     )
                     .bold()
                     .frame(
@@ -4718,7 +5160,8 @@ struct AvaliarLocalView: View {
                             .infinity
                     )
                     .frame(
-                        height: 55
+                        height:
+                            55
                     )
                 }
                 .foregroundColor(
@@ -4742,19 +5185,16 @@ struct AvaliarLocalView: View {
         .navigationTitle(
             "Nova avaliação"
         )
-        .navigationBarTitleDisplayMode(
-            .inline
-        )
     }
 
     private func publicar() {
 
-        mensagemErro = ""
-
-        let texto = comentario
-            .trimmingCharacters(
-                in: .whitespacesAndNewlines
-            )
+        let texto =
+            comentario
+                .trimmingCharacters(
+                    in:
+                        .whitespacesAndNewlines
+                )
 
         guard estrelas > 0 else {
 
@@ -4774,18 +5214,14 @@ struct AvaliarLocalView: View {
 
         avaliacoesStore
             .adicionar(
-
-                local: local,
-
+                local:
+                    local,
                 email:
                     emailUsuario,
-
                 estrelas:
                     estrelas,
-
                 comentario:
                     texto,
-
                 categorias:
                     Array(
                         categoriasSelecionadas
@@ -4798,27 +5234,122 @@ struct AvaliarLocalView: View {
 }
 
 
-// MARK: - CARD DA AVALIAÇÃO NA EMPRESA
+// MARK: - BOTÃO DE REAÇÃO
+
+struct BotaoReacao: View {
+
+    let titulo:
+        String
+
+    let icone:
+        String
+
+    let quantidade:
+        Int
+
+    let selecionado:
+        Bool
+
+    let cor:
+        Color
+
+    let acao:
+        () -> Void
+
+    var body: some View {
+
+        Button(
+            action:
+                acao
+        ) {
+
+            HStack(
+                spacing:
+                    6
+            ) {
+
+                Image(
+                    systemName:
+                        selecionado
+                        ? "\(icone).fill"
+                        : icone
+                )
+
+                Text(
+                    titulo
+                )
+
+                Text(
+                    "\(quantidade)"
+                )
+            }
+            .font(
+                .caption
+            )
+            .bold()
+            .foregroundColor(
+                selecionado
+                ? .white
+                : cor
+            )
+            .padding(
+                .horizontal,
+                12
+            )
+            .frame(
+                height:
+                    38
+            )
+            .background(
+                selecionado
+                ? cor
+                : cor.opacity(0.10)
+            )
+            .cornerRadius(
+                10
+            )
+        }
+        .buttonStyle(
+            .plain
+        )
+    }
+}
+
+
+// MARK: - CARD DE AVALIAÇÃO
 
 struct AvaliacaoCard: View {
 
     let avaliacao:
         AvaliacaoLocal
 
+    let emailUsuario:
+        String
+
     @ObservedObject
     var perfilStore:
         PerfilStore
 
+    @ObservedObject
+    var avaliacoesStore:
+        AvaliacoesStore
+
+    @ObservedObject
+    var reacoesStore:
+        ReacoesStore
+
     private var positiva:
         Bool {
 
-        avaliacao.estrelas >= 4
+        avaliacao
+            .estrelas >= 4
     }
 
     private var negativa:
         Bool {
 
-        avaliacao.estrelas <= 2
+        avaliacao
+            .estrelas <= 2
     }
 
     private var perfilAutor:
@@ -4832,38 +5363,111 @@ struct AvaliacaoCard: View {
             )
     }
 
+    private var minhaReacao:
+        TipoReacao? {
+
+        reacoesStore
+            .reacaoDoUsuario(
+                avaliacaoID:
+                    avaliacao.id,
+                emailUsuario:
+                    emailUsuario
+            )
+    }
+
+    private var concordam:
+        Int {
+
+        reacoesStore
+            .quantidade(
+                avaliacaoID:
+                    avaliacao.id,
+                tipo:
+                    .concordar
+            )
+    }
+
+    private var discordam:
+        Int {
+
+        reacoesStore
+            .quantidade(
+                avaliacaoID:
+                    avaliacao.id,
+                tipo:
+                    .discordar
+            )
+    }
+
     var body: some View {
 
         VStack(
-            alignment: .leading,
-            spacing: 12
+            alignment:
+                .leading,
+            spacing:
+                14
         ) {
 
             HStack {
 
-                // 4 OU 5 ESTRELAS:
-                // mostra foto e apelido
-
                 if positiva {
 
-                    AvatarPerfilView(
-                        perfil:
-                            perfilAutor,
-                        tamanho: 38
-                    )
+                    NavigationLink {
 
-                    Text(
-                        perfilAutor
-                            .nomeExibicao
-                    )
-                    .font(
-                        .headline
+                        PerfilPublicoView(
+                            email:
+                                avaliacao
+                                    .emailAutor,
+                            perfilStore:
+                                perfilStore,
+                            avaliacoesStore:
+                                avaliacoesStore,
+                            reacoesStore:
+                                reacoesStore
+                        )
+
+                    } label: {
+
+                        HStack(
+                            spacing:
+                                10
+                        ) {
+
+                            AvatarPerfilView(
+                                perfil:
+                                    perfilAutor,
+                                tamanho:
+                                    38
+                            )
+
+                            Text(
+                                perfilAutor
+                                    .nomeExibicao
+                            )
+                            .font(
+                                .headline
+                            )
+                            .foregroundColor(
+                                .primary
+                            )
+
+                            Image(
+                                systemName:
+                                    "chevron.right"
+                            )
+                            .font(
+                                .caption
+                            )
+                            .foregroundColor(
+                                .secondary
+                            )
+                        }
+                    }
+                    .buttonStyle(
+                        .plain
                     )
 
                 } else {
-
-                    // 1, 2 ou 3 estrelas:
-                    // mantém anônimo
 
                     Image(
                         systemName:
@@ -4871,7 +5475,8 @@ struct AvaliacaoCard: View {
                     )
                     .font(
                         .system(
-                            size: 38
+                            size:
+                                38
                         )
                     )
                     .foregroundColor(
@@ -4930,31 +5535,11 @@ struct AvaliacaoCard: View {
                 }
             }
 
-            HStack(
-                spacing: 3
-            ) {
-
-                ForEach(
-                    1...5,
-                    id: \.self
-                ) {
-                    estrela in
-
-                    Image(
-                        systemName:
-                            estrela <=
-                            avaliacao
-                                .estrelas
-
-                            ? "star.fill"
-
-                            : "star"
-                    )
-                    .foregroundColor(
-                        .yellow
-                    )
-                }
-            }
+            EstrelasView(
+                quantidade:
+                    avaliacao
+                        .estrelas
+            )
 
             if !avaliacao
                 .categorias
@@ -4963,7 +5548,8 @@ struct AvaliacaoCard: View {
                 ForEach(
                     avaliacao
                         .categorias,
-                    id: \.self
+                    id:
+                        \.self
                 ) {
                     categoria in
 
@@ -4985,6 +5571,64 @@ struct AvaliacaoCard: View {
                 avaliacao
                     .comentario
             )
+
+            Divider()
+
+            HStack(
+                spacing:
+                    10
+            ) {
+
+                BotaoReacao(
+                    titulo:
+                        "Concordar",
+                    icone:
+                        "hand.thumbsup",
+                    quantidade:
+                        concordam,
+                    selecionado:
+                        minhaReacao ==
+                        .concordar,
+                    cor:
+                        .green
+                ) {
+
+                    reacoesStore
+                        .alternarReacao(
+                            avaliacaoID:
+                                avaliacao.id,
+                            emailUsuario:
+                                emailUsuario,
+                            tipo:
+                                .concordar
+                        )
+                }
+
+                BotaoReacao(
+                    titulo:
+                        "Discordar",
+                    icone:
+                        "hand.thumbsdown",
+                    quantidade:
+                        discordam,
+                    selecionado:
+                        minhaReacao ==
+                        .discordar,
+                    cor:
+                        .red
+                ) {
+
+                    reacoesStore
+                        .alternarReacao(
+                            avaliacaoID:
+                                avaliacao.id,
+                            emailUsuario:
+                                emailUsuario,
+                            tipo:
+                                .discordar
+                        )
+                }
+            }
 
             Text(
                 avaliacao
@@ -5015,9 +5659,11 @@ struct AvaliacaoCard: View {
         .shadow(
             color:
                 Color.black
-                .opacity(0.05),
-            radius: 7,
-            y: 3
+                    .opacity(0.05),
+            radius:
+                7,
+            y:
+                3
         )
     }
 }
