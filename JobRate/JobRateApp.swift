@@ -4,12 +4,18 @@
 //
 
 import SwiftUI
+import FirebaseCore
 
 @main
 struct JobRateApp: App {
 
-    var body: some Scene {
+    init() {
+        if FirebaseApp.app() == nil {
+            FirebaseApp.configure()
+        }
+    }
 
+    var body: some Scene {
         WindowGroup {
             ContentView()
         }
